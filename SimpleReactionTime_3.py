@@ -224,15 +224,15 @@ def get_phases(EnvironmentalConditions,*,Light=720,Dark=720):
      
 ################################################################################
 #find and open the data, assign it a name
+#find and open the data, assign it a name
 ending = '\*.zip'
 msg, title ="Please select the folder containing your Habituation data files", "Import Habituation Data"
 data = g.diropenbox(msg, title)
 data = data + ending
-SRT = pm.Loader(data, getEnv=True)
-msg, title  ="Name your Data","Name Data"
-name = g.enterbox(msg, title) 
-excelname =name + ".xlsx"
-writer = pd.ExcelWriter(name, engine='xlsxwriter')
+
+SRT_data = glob.glob(data)
+loaders = [pm.Loader(filename, getEnv=True) for filename in SRT_data]
+SRT = pm.Merger(*loaders, getEnv=True)
 
 
 #set up data frame
