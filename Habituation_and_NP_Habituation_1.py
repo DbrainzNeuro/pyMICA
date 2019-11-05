@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Tue Jul 30 09:54:42 2019
-
-@author: Elliot
+@author: Elliot Brandwein and Dana Bakalar
 """    
 
 import pymice as pm
@@ -27,9 +26,6 @@ def cleanUp(listofvisits,*,seconds=180,pokes=0):
          removedvisits.append(listofvisits[k])
          del(listofvisits[k])
      return(listofvisits)
-
-
-
 
 def Alternation(explorevisits):
      from numpy import unique
@@ -207,32 +203,38 @@ excelname =name + ".xlsx"
 writer = pd.ExcelWriter(excelname, engine='xlsxwriter')
 
 
-columns = ["Name","Sex","Group"]
+hr1visits, hr48visits= 0, 0           
+index2 = 0
+phases = get_phases(habit.getEnvironment())
+phase_count = len(phases)
 
+
+columns = ["Name","Sex","Group"]
 columns2 = ["Name","Sex","Group","Latency_to_four","Spontaneous_Corner_Alternations",
             "Alternate_Corner_Returns","Same_Corner_Returns", "Circadian_Ratio", 
             "Visits_First_Hour", "Visits_48th_Hour"]
-
 data_frame = pd.DataFrame(columns = columns)
 data_frame2 = pd.DataFrame(columns = columns2)
 
-hr1visits, hr48visits= 0, 0           
-index2 = 0
 
-####Calculate the phases 
-
-phases = get_phases(habit.getEnvironment())
-phase_count = len(phases)
+#fill in headers of data frame 1
 for group in habit.getGroup():
     for animal in list(habit.getGroup(group).Animals):
         for phase in range(phase_count):
             new_row = {'Name':animal.Name, 'Sex':animal.Sex,
                        'Group': group,'Phase':phase + 1}
             data_frame = data_frame.append(new_row,ignore_index=True)
-            data_frame2 = data_frame.append(new_row,ignore_index=True)
 
+#fill in headers of data frame 2
+for group in habit.getGroup():
+    for animal in list(habit.getGroup(group).Animals):
+        new_row = {'Name':animal.Name, 'Sex':animal.Sex,
+                       'Group': group}
+        data_frame2 = data_frame2.append(new_row,ignore_index=True)
+        
 #get Spontaneous Corner Alternation info and Latency to explore 4 corners from uncleaned data 
         explorevisits = habit.getVisits(mice= animal)
+        print(len(explorevisits))
         SCA,ACR,SCR = Alternation(explorevisits)
         latency = ExplorePhase(explorevisits)
         
@@ -240,26 +242,23 @@ for group in habit.getGroup():
         data_frame2.at[index2,"Spontaneous_Corner_Alternations"] = SCA
         data_frame2.at[index2,"Alternate_Corner_Returns"] = ACR
         data_frame2.at[index2,"Same_Corner_Returns"] = SCR
-        
-#get circadian ratio of the mice by number of cleaned visits
-#NOTE: higher values on this measure of DayPattern indicate reduced activity during the day 
+    
+#get circadian ratio of the mice
+#NOTE: higher values on this measure of DayPattern indicate reduced activity during the day         
         lightvisits = 0
         darkvisits = 0
         for phase in phases:
-            visitsuncleaned = habit.getVisits(start = phase.get("Start"),
+            visits = habit.getVisits(start = phase.get("Start"),
                         end = phase.get("End"),mice = animal)
-            visits = cleanUp(visitsuncleaned)
             Light_or_Dark = phase.get("Phase")
-
             if Light_or_Dark == "Dark":
                 darkvisits += len(visits)
             if Light_or_Dark == "Light":
                 lightvisits += len(visits)
-        
         if lightvisits + darkvisits > 1:
             circ = (darkvisits-lightvisits)/(lightvisits+darkvisits)
             data_frame2.at[index2,"Circadian_Ratio"] = circ
-
+                
 #check number of visits in first hour in the cage and the equivalent timepoint 48 hours later
         if len(explorevisits)>3:
             start_time = explorevisits[1].Start    
@@ -275,8 +274,8 @@ for group in habit.getGroup():
                                          mice = animal))           
             data_frame2.at[index2,"Visits_First_Hour"] = hr1visits
             data_frame2.at[index2,"Visits_48th_Hour"] = hr48visits
-        index2 += 1
 
+        index2 += 1
 
 #########################################################################################
 # Prepare to collect data from each phase, resetting variables
@@ -322,5 +321,4 @@ data_frame2.to_excel(writer, sheet_name = 'Overall Statistics')
 
 
 writer.save()
-
 
