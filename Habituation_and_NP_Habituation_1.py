@@ -234,7 +234,6 @@ for group in habit.getGroup():
         
 #get Spontaneous Corner Alternation info and Latency to explore 4 corners from uncleaned data 
         explorevisits = habit.getVisits(mice= animal)
-        print(len(explorevisits))
         SCA,ACR,SCR = Alternation(explorevisits)
         latency = ExplorePhase(explorevisits)
         
