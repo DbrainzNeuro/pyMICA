@@ -2,7 +2,7 @@
 """
 Created on Fri Aug 16 09:43:19 2019
 
-@author: Elliot Brandwein and Dana Bakalar
+@author: Dana Bakalar and Elliot Brandwein
 """
 
 import pymice as pm
@@ -10,7 +10,7 @@ import pandas as pd
 import glob
 import easygui as g
 import datetime
-
+import os
 
 #functions needed
 def get_phases(EnvironmentalConditions,*,Light=720,Dark=720):
@@ -104,7 +104,7 @@ msg, title ="Please select the folder containing your Habituation data files", "
 data = g.diropenbox(msg, title)
 data = data + ending
 
-DD_data = glob.glob(data)
+DD_data = sorted(glob.glob(data), key=os.path.getmtime)
 loaders = [pm.Loader(filename, getEnv=True) for filename in DD_data]
 DD = pm.Merger(*loaders, getEnv=True)
 
