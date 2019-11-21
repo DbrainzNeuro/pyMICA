@@ -4,14 +4,15 @@
 """
 Created on Thu Oct 11 09:46:02 2018
 
-@author: Elliot Brandwein and Dana Bakalar
+@author: Dana Bakalar and Elliot Brandwein
 """
 
 import pymice as pm
 import easygui as g
-import glob
 import pandas as pd
 import datetime
+import glob
+import os
 ###################################################################################
 
 #Functions needed
@@ -34,69 +35,51 @@ def cleanUp(listofvisits):
 
 def Early_Late(v):
 #called for each visit within a mouse/phase combo
-    visit_module = 0
-    if v.Module == 'Default':
-        visit_module = 0
-    elif v.Module == 'Delay0.5':
-        visit_module = 0.5
+    visit_module, c = 0, 0
+    if v.Module == 'Delay0.5':
+        visit_module = 0.5 
     elif v.Module == 'Delay1.5':
         visit_module = 1.5     
     elif v.Module == 'Delay2.5':
         visit_module = 2.5  
     late = visit_module + 5
-    early = visit_module
+    early = visit_module 
     nps = []
-    EarlyPokes = 0
-    LatePokes = 0
-    OnTimes = 0
-    for n in range(len(v.Nosepokes)): 
-        m = v.Nosepokes[n] #get each nosepoke in range
-        nps.append(m.Start)  #list the times each np starts
-        #get first and second pokes to see if mouse missed the time window altogther
-        a = nps[n] #start of THIS nosepoke
-        b= nps[0] #start of first nosepoke
-        c=a-b
+    EarlyPokes, LatePokes, OnTimes, omissions, rt = 0,0,0, 0, 0
+   
+    if v.Module != "Default":
+        for n in range(len(v.Nosepokes)): 
+            m = v.Nosepokes[n] #get each nosepoke in range
+            nps.append(m.Start)  #list the times each np starts
+    
+            a = nps[n] #start of THIS nosepoke
+            b= nps[0] #start of first nosepoke
+            c=a-b #time difference between the two pokes
+            if c.total_seconds() < early and c.total_seconds() > 0:
+                EarlyPokes = EarlyPokes + 1
+            elif c.total_seconds() > late:
+                LatePokes=LatePokes+1
+            elif c.total_seconds() >= early and c.total_seconds() < late:
+                OnTimes = OnTimes + 1
+            
+            if c.total_seconds() >= early and rt == 0:
+                rt = c.total_seconds()
+                
+        if len(nps)> 1:
+            d = nps[1] #start of second nosepoke- for measuring omissions
+            e = d-b
+            if e.total_seconds() > late:
+                omissions += 1       
+            
+    return (EarlyPokes, LatePokes, OnTimes, rt, omissions)
 
-        if c.seconds < early:
-            EarlyPokes = EarlyPokes + 1
-        elif c.seconds > late:
-            LatePokes=LatePokes+1
-        elif c.seconds >= early and c.seconds < late:
-            OnTimes = OnTimes + 1
-    return (EarlyPokes, LatePokes, OnTimes)
-
-
-
-def ReactionTime(v):
-    rt = 0
-    n1start = 'no correct pokes'
-    n0start = 0
-
-    if len(v.Nosepokes) > 1:
-        n0 = v.Nosepokes[0]
-        n0start = n0.Start   #time of first poke to get latency from
-        for n in range(len(v.Nosepokes)):
-            m = v.Nosepokes[n] 
-            if m.SideCondition == 1:
-                 n1 = v.Nosepokes[n]
-                 n1start = n1.Start
-                 break   #find 1st correct poke, use that time to calculate latency
-                 n1start = n1.Start
-                 n0start = n0.Start   #time of first poke to get latency from
-    if n1start != 'no correct pokes':     
-        rt_raw = (n1start-n0start)
-        rt = rt_raw.microseconds 
-    else: 
-        rt == 'No Correct Pokes'
-    return (rt)
-
-
-def SideErrors(v):
-   """Side errors are pokes to a side other than the first poked side"""
-   SideErrors =0
+   
+   
    for n in range(len(v.Nosepokes)):
+       n0 = v.Nosepokes[0]
+       toolate = n0.Start + datetime.timedelta(0,late)
        m = v.Nosepokes[n]
-       if m.SideCondition == 1:
+       if m.SideCondition == 1 and m.Start > toolate:
           SideErrors += 1
    return(SideErrors)
 
@@ -140,7 +123,7 @@ def get_phases(EnvironmentalConditions,*,Light=720,Dark=720):
     run_time = (get_timedelta_in_minutes(ec[0].DateTime,ec[len(ec)-1].DateTime))
     current_phase = ""
     duration = 0
-    if(ec[0].Illumination < 15):
+    if(ec[0].Illumination < 4):
         current_phase = 'Dark'
     else:
         current_phase = 'Light'
@@ -149,7 +132,7 @@ def get_phases(EnvironmentalConditions,*,Light=720,Dark=720):
     if(current_phase == 'Dark'):
         while(duration < Dark):
             printed = False
-            if(ec[end_phase_index].Illumination >= 15):
+            if(ec[end_phase_index].Illumination >= 4):
                 output.append({ 
                     'Start':ec[begin_phase_index].DateTime,
                     'End':ec[end_phase_index].DateTime,
@@ -173,7 +156,7 @@ def get_phases(EnvironmentalConditions,*,Light=720,Dark=720):
     elif(current_phase == 'Light'):
         while(duration < Light):
             printed = False
-            if(ec[end_phase_index].Illumination < 15):
+            if(ec[end_phase_index].Illumination < 4):
                 output.append({ 
                 'Start':ec[begin_phase_index].DateTime,
                 'End':ec[end_phase_index].DateTime,
@@ -225,15 +208,19 @@ def get_phases(EnvironmentalConditions,*,Light=720,Dark=720):
      
 ################################################################################
 #find and open the data, assign it a name
-#find and open the data, assign it a name
 ending = '\*.zip'
-msg, title ="Please select the folder containing your Habituation data files", "Import Habituation Data"
+msg, title ="Please select the folder containing your SRT data files", "Import SRT Data"
 data = g.diropenbox(msg, title)
 data = data + ending
 
-SRT_data = glob.glob(data)
+SRT_data = sorted(glob.glob(data), key=os.path.getmtime)
 loaders = [pm.Loader(filename, getEnv=True) for filename in SRT_data]
 SRT = pm.Merger(*loaders, getEnv=True)
+
+msg, title  ="Name your Data","Name Data"
+name = g.enterbox(msg, title) 
+excelname =name + ".xlsx"
+
 
 
 #set up data frame
@@ -241,19 +228,19 @@ columns05 = ["Name","Sex","Group","Phase", "Phase Length (M)","Phase Cycle",
           
            "Visits","Nosepokes", 
            "Side Errors","Early Pokes",
-           "Late Pokes", "Reaction Time (s)"]
+           "Late Pokes", "Reaction Time (s)", "Omissions"]
            
 columns15 = ["Name","Sex","Group","Phase", "Phase Length (M)","Phase Cycle",
           
            "Visits","Nosepokes", 
            "Side Errors","Early Pokes",
-           "Late Pokes", "Reaction Time (s)"]
+           "Late Pokes", "Reaction Time (s)", "Omissions"]
 
 columns25 = ["Name","Sex","Group","Phase", "Phase Length (M)","Phase Cycle",
           
            "Visits","Nosepokes", 
            "Side Errors","Early Pokes",
-           "Late Pokes", "Reaction Time (s)"]
+           "Late Pokes", "Reaction Time (s)", "Omissions"]
 
 data_frame05 = pd.DataFrame(columns = columns05)
 data_frame15 = pd.DataFrame(columns = columns15)
@@ -277,7 +264,7 @@ index = 0
 for group in SRT.getGroup():
     for animal in list(SRT.getGroup(group).Animals):
         for phase in phases:
-            
+            omissions05, omissions15, omissions25 = 0,0,0
 #collect the visits
             visits_uncleaned = SRT.getVisits(start = phase['Start'], end = phase['End'], mice = animal)
             visits, removedvisits = cleanUp(visits_uncleaned)
@@ -289,15 +276,14 @@ for group in SRT.getGroup():
             all_lates05,all_lates15,all_lates25 =0,0,0
             ontimes05,ontimes15,ontimes25 =0,0,0
             pokes05,pokes15,pokes25 = 0,0,0           
-            side_r05,side_r15,side_r25 =0,0,0
             reacttimes05,reacttimes15,reacttimes25 =[],[],[]
+
             
 #get statistics for each visit   
             for v in visits:
                 FinalErrs = SideErrors(v) 
                 correct = CorrectList(v)   
-                EarlyPokes, LatePokes, OnTimes= Early_Late(v)               
-                rt = ReactionTime(v)     
+                EarlyPokes, LatePokes, OnTimes, rt, omissions = Early_Late(v)  
         #sort these statistics based on module  : for v in visits:           
                 if v.Module == 'Delay0.5':
                     visits05  +=  1 #count visits at each delay
@@ -306,7 +292,8 @@ for group in SRT.getGroup():
                     withcorrect05  +=  correct
                     all_early05 += EarlyPokes
                     all_lates05 += LatePokes          
-                    reacttimes05.append(rt/1000000)  #this is the reaction time in seconds   
+                    reacttimes05.append(rt)  #this is the reaction time in seconds   
+                    omissions05 += omissions 
                     if OnTimes != 0:
                         ontimes05 += OnTimes
                         
@@ -317,7 +304,8 @@ for group in SRT.getGroup():
                     withcorrect15  += correct
                     all_early15 += EarlyPokes
                     all_lates15 += LatePokes
-                    reacttimes15.append(rt/1000000)  #this is the reaction time    
+                    reacttimes15.append(rt)  #this is the reaction time  
+                    omissions15 += omissions
                     if OnTimes != 0:
                         ontimes15 += OnTimes
                                                     
@@ -328,7 +316,8 @@ for group in SRT.getGroup():
                     withcorrect25 = withcorrect25 + correct
                     all_early25 += EarlyPokes
                     all_lates25 += LatePokes
-                    reacttimes25.append(rt/1000000)  #this is the reaction time   
+                    reacttimes25.append(rt)  #this is the reaction time   
+                    omissions25 += omissions
                     if OnTimes != 0:
                         ontimes25 += OnTimes
 
@@ -346,11 +335,7 @@ for group in SRT.getGroup():
             data_frame05.at[index,"Nosepokes"] = pokes05
             data_frame15.at[index,"Nosepokes"] = pokes15
             data_frame25.at[index,"Nosepokes"] = pokes25
-        
-            data_frame05.at[index,"Side Errors"] = side_r05
-            data_frame15.at[index,"Side Errors"] = side_r15
-            data_frame25.at[index,"Side Errors"] = side_r25
-        
+
             data_frame05.at[index,"Early Pokes"] = all_early05
             data_frame15.at[index,"Early Pokes"] = all_early15
             data_frame25.at[index,"Early Pokes"] = all_early25
@@ -358,6 +343,10 @@ for group in SRT.getGroup():
             data_frame05.at[index,"Late Pokes"] = all_lates05
             data_frame15.at[index,"Late Pokes"] = all_lates15
             data_frame25.at[index,"Late Pokes"] = all_lates25
+            
+            data_frame05.at[index,"Omissions"] = omissions05
+            data_frame15.at[index,"Omissions"] = omissions15
+            data_frame25.at[index,"Omissions"] = omissions25
         
             if len(reacttimes05) > 0:
                 data_frame05.at[index,"Reaction Time (s)"] = sum(reacttimes05)/len(reacttimes05)
@@ -367,7 +356,7 @@ for group in SRT.getGroup():
                 data_frame25.at[index,"Reaction Time (s)"] = sum(reacttimes25)/len(reacttimes25)
             index += 1
             
-            
+writer = pd.ExcelWriter (excelname, engine = 'xlsxwriter')          
 data_frame05.to_excel(writer, sheet_name='0.5 sec delay')
 data_frame15.to_excel(writer, sheet_name='1.5 sec delay')
 data_frame25.to_excel(writer, sheet_name='2.5 sec delay')
