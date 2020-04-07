@@ -1,18 +1,5 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Jan  3 10:05:05 2019
-
-@author: Dana Bakalar and Elliot Brandwein
-"""
-import easygui as g
-import pymice as pm
-import glob
-import pandas as pd
-import datetime
-assignedcorner = 0# -*- coding: utf-8 -*-
-"""
-Created on Thu Jan  3 10:05:05 2019
-
 @author: Elliot Brandwein and Dana Bakalar
 """
 import easygui as g
@@ -161,7 +148,7 @@ def AssignedCorner(animal, PL):
 ###########################################################################################
 #find and open the data, assign it a name
 ending = '\*.zip'
-msg, title ="Please select the folder containing your Habituation data files", "Import Habituation Data"
+msg, title ="Please select the folder containing your Place and Reversal learning data files", "Import PL/RL Data"
 data = g.diropenbox(msg, title)
 data = data + ending
 
